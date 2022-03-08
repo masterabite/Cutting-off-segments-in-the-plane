@@ -5,7 +5,7 @@
 using namespace std;
 
 bool isEqual(long double d1, long double d2) {
-    return (abs(d1 - d2) <= 1e-6);
+    return (abs(d1 - d2) <= 1e-10);
 }
 
 struct point {
@@ -29,7 +29,7 @@ struct point {
     }
 
     bool parallelUnidirected(point p) {
-        if (p.x * x < -1e-5 || p.y * y < -1e-5) {
+        if (p.x * x < -1e-8 || p.y * y < -1e-8) {
             return false;
         }
 
@@ -53,6 +53,7 @@ struct point {
     long double operator*(const point& p) const {
         return x * p.x + y * p.y;
     }
+
     point operator*(long double k) const {
         return point(x * k, y * k);
     }
@@ -83,7 +84,7 @@ struct line_segment {
     }
 
     bool havePoint(point p) {
-        return ((p-p0).parallelUnidirected(p1-p));
+        return ((p - p0).parallelUnidirected(p1 - p));
     }
 
     void scan(ifstream& fin) {
@@ -105,7 +106,7 @@ struct line_segment {
     long double get_t(point p) {
         point v = p1 - p0;
         point pn = p - p0;
-        if (pn.x/v.x == pn.y/v.y) {
+        if (pn.x / v.x == pn.y / v.y) {
             return pn.x / v.x;
         }
         else {
@@ -130,53 +131,73 @@ struct square {
 };
 
 long double getPointSpacing(point p1, point p2, point p3) {
-    return (p1-p2).length() + (p3-p2).length();
+    return (p1 - p2).length() + (p3 - p2).length();
 }
 
 long double get_tE(line_segment& l1, line_segment& l2) {
-    long double mint = -10, maxt = 10;
-    point minp(l1.get_point(mint)), maxp(l1.get_point(maxt));
+
     long double l = l2.ta, r = l2.tb;
-    
-    long double sl = getPointSpacing(minp, l2.get_point(l), maxp);
-    long double sm{};
-    long double sr = getPointSpacing(minp, l2.get_point(r), maxp);
+    bool hor = (l1.p0.y == l1.p1.y);
+    long double e = (hor ? l1.p0.y : l1.p0.x);
+    point mp;
 
     while (r - l > 1e-12) {
         long double m = (l + r) / 2;
-        sm = getPointSpacing(minp, l2.get_point(m), maxp);
 
-        if (sr - sl >= 1e-18) {
-            sr = sm;
+        point lp = l2.get_point(l);
+        point mp = l2.get_point(m);
+        point rp = l2.get_point(r);
+        long double del = e - (hor ? lp.y : lp.x);
+        long double dem = e - (hor ? mp.y : mp.x);
+        long double der = e - (hor ? rp.y : rp.x);
+      
+        if (del * dem < 0) {
             r = m;
         }
-        else {
-            sl = sm;
+        else if (der * dem < 0) {
             l = m;
         }
+        else {
+            if (dem == 0 && (del != 0)) {
+                return m;
+            }
+          
+            if (hor) {
+                if (abs(lp.y - e) < abs(rp.y - e)) {
+                    return l;
+                }
+                else {
+                    return r;
+                }
+            }
+            else {
+                if (abs(lp.x - e) < abs(rp.x-e)) {
+                    return l;
+                }
+                else {
+                    return r;
+                }
+            }
+        }
     }
-
     return r;
 }
 
 //сначала секущий отрезок
 void cutOff(line_segment& l1, line_segment& l2) {
 
-    point n = point(l1.p1.y - l1.p0.y, -(l1.p1.x-l1.p0.x)); //вектор нормали секущего отрезка, направленый вправо по направлению вектора
-    long double tE = get_tE(l1, l2); //находим параметр точки пересечения для отсекаемого отрезка
-    point interPoint = l2.get_point(tE);
-
+    point n = point(l1.p1.y - l1.p0.y, -(l1.p1.x - l1.p0.x)); //вектор нормали секущего отрезка, направленый вправо по направлению вектора
     long double prod = (l2.p1 - l1.p0) * n;
 
+    long double tE = get_tE(l1, l2); //находим параметр точки пересечения для отсекаемого отрезка
+    point interPoint = l2.get_point(tE);
 
     if (l1.havePoint(interPoint)) {
         if (prod < 0) {
             l2.p0 = interPoint;
-            l2.ta = tE;
         }
         else {
             l2.p1 = interPoint;
-            l2.tb = tE;
         }
     }
     else {
@@ -206,10 +227,10 @@ int main() {
         a[i].scan(fin);
     }fin.close();
 
-    for (int q = 0; q < 4; ++q) {
-        line_segment sline1(s.p[q], s.p[(q+1)%4]);
 
-        for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < n; ++i) {
+        for (int q = 0; q < 4; ++q) {
+            line_segment sline1(s.p[q], s.p[(q + 1) % 4]);
             cutOff(sline1, a[i]);
         }
     }
@@ -226,8 +247,10 @@ int main() {
 
     for (int i = 0; i < n; ++i) {
         if (a[i].visible) {
-            fout << (a[i].p0.x < 1e-6? 0: a[i].p0.x) << ' ' << (a[i].p0.y < 1e-6 ? 0 : a[i].p0.y) << ' ';
-            fout << (a[i].p1.x < 1e-6 ? 0 : a[i].p1.x) << ' ' << (a[i].p1.y < 1e-6 ? 0 : a[i].p1.y) << '\n';
+            fout.precision(10);
+            fout << fixed;
+            fout << a[i].p0.x << ' ' << a[i].p0.y << ' ';
+            fout << a[i].p1.x << ' ' << a[i].p1.y << '\n';
         }
     } fout.close();
     return 0;
