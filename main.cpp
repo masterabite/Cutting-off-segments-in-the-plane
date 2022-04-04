@@ -1,6 +1,8 @@
 #include <iostream>
 #include <locale>
 #include <fstream>
+#include <cmath>
+#include <cfloat>
 
 using namespace std;
 
@@ -20,15 +22,15 @@ struct point {
         y = _y;
     }
 
-    void print() {
-        printf("(%lf,%lf) ", x, y);
+    void print() const {
+        cout << "(" << x << "; " << y << ")";
     }
 
     void scan(ifstream& fin) {
         fin >> x >> y;
     }
 
-    bool parallelUnidirected(point p) {
+    bool parallelUnidirected(point p) const {
         if (p.x * x < -1e-8 || p.y * y < -1e-8) {
             return false;
         }
@@ -45,20 +47,20 @@ struct point {
     }
 
     point operator+(const point& p) const {
-        return point(x + p.x, y + p.y);
+        return {x + p.x, y + p.y};
     }
     point operator-(const point& p) const {
-        return point(x - p.x, y - p.y);
+        return {x - p.x, y - p.y};
     }
     long double operator*(const point& p) const {
         return x * p.x + y * p.y;
     }
 
     point operator*(long double k) const {
-        return point(x * k, y * k);
+        return {x * k, y * k};
     }
 
-    double length() {
+    double length() const {
         return sqrt(x * x + y * y);
     }
 };
@@ -83,7 +85,7 @@ struct line_segment {
         tb = 1.0;
     }
 
-    bool havePoint(point p) {
+    bool havePoint(point p) const {
         return ((p - p0).parallelUnidirected(p1 - p));
     }
 
@@ -92,18 +94,18 @@ struct line_segment {
         p1.scan(fin);
     }
 
-    void print() {
+    void print() const {
         p0.print();
         cout << ' ';
         p1.print();
         cout << '\n';
     }
 
-    point get_point(long double t) {
+    point get_point(long double t) const {
         return (p0 + (p1 - p0) * t);
     }
 
-    long double get_t(point p) {
+    long double get_t(point p) const {
         point v = p1 - p0;
         point pn = p - p0;
         if (pn.x / v.x == pn.y / v.y) {
@@ -117,7 +119,6 @@ struct line_segment {
 
 struct square {
     point p[4];
-
     void scan(ifstream& fin) {
         p[0].scan(fin);
         p[2].scan(fin);
@@ -130,16 +131,12 @@ struct square {
     }
 };
 
-long double getPointSpacing(point p1, point p2, point p3) {
-    return (p1 - p2).length() + (p3 - p2).length();
-}
-
 long double get_tE(line_segment& l1, line_segment& l2) {
 
     long double l = l2.ta, r = l2.tb;
     bool hor = (l1.p0.y == l1.p1.y);
     long double e = (hor ? l1.p0.y : l1.p0.x);
-    point mp;
+
 
     while (r - l > 1e-12) {
         long double m = (l + r) / 2;
@@ -150,7 +147,7 @@ long double get_tE(line_segment& l1, line_segment& l2) {
         long double del = e - (hor ? lp.y : lp.x);
         long double dem = e - (hor ? mp.y : mp.x);
         long double der = e - (hor ? rp.y : rp.x);
-      
+
         if (del * dem < 0) {
             r = m;
         }
@@ -161,7 +158,7 @@ long double get_tE(line_segment& l1, line_segment& l2) {
             if (dem == 0 && (del != 0)) {
                 return m;
             }
-          
+
             if (hor) {
                 if (abs(lp.y - e) < abs(rp.y - e)) {
                     return l;
@@ -184,55 +181,115 @@ long double get_tE(line_segment& l1, line_segment& l2) {
 }
 
 //сначала секущий отрезок
-void cutOff(line_segment& l1, line_segment& l2) {
+void cutOff_CyrusBeck(square& s, line_segment& l2) {
+    for (int q = 0; q < 4; ++q) {
+        line_segment l1(s.p[q], s.p[(q + 1) % 4]); //определяем отрезок стороны прямоугольника
 
-    point n = point(l1.p1.y - l1.p0.y, -(l1.p1.x - l1.p0.x)); //вектор нормали секущего отрезка, направленый вправо по направлению вектора
-    long double prod = (l2.p1 - l1.p0) * n;
+        //вектор нормали секущего отрезка, направленый вправо по направлению вектора
+        point n = point(l1.p1.y - l1.p0.y, -(l1.p1.x - l1.p0.x));
+        long double prod = (l2.p1 - l1.p0) * n;
 
-    long double tE = get_tE(l1, l2); //находим параметр точки пересечения для отсекаемого отрезка
-    point interPoint = l2.get_point(tE);
+        //находим параметр точки пересечения для отсекаемого отрезка
+        long double tE = get_tE(l1, l2);
+        point interPoint = l2.get_point(tE);
 
-    if (l1.havePoint(interPoint)) {
-        if (prod < 0) {
-            l2.p0 = interPoint;
-        }
-        else {
-            l2.p1 = interPoint;
+        if (l1.havePoint(interPoint)) {
+            if (prod < 0) {
+                l2.p0 = interPoint;
+            } else {
+                l2.p1 = interPoint;
+            }
+        } else {
+            point pf(l1.p1 - l1.p0), ps(l2.p0 - l1.p0);
+            long double k = pf.x * ps.y - pf.y * ps.x;
+            if (k < 0) {
+                l2.visible = false;
+            }
         }
     }
-    else {
-        point pf(l1.p1 - l1.p0), ps(l2.p0 - l1.p0);
-        long double k = pf.x * ps.y - pf.y * ps.x;
-        if (k < 0) {
-            l2.visible = false;
-        }
-    }
-
 }
 
-int main() {
 
-    setlocale(LC_ALL, "Russian");
-    ifstream fin("in.txt");
+int getCode(square& s, point& p) {
+    int pw[4] = {1, 2, 4, 8};
+    int ans = 0;
+
+    if (p.x < s.p[0].x) {
+        ans += pw[0];
+    }
+    if (p.x > s.p[2].x) {
+        ans += pw[1];
+    }
+    if (p.y < s.p[0].y) {
+        ans += pw[2];
+    }
+    if (p.y > s.p[2].y) {
+        ans += pw[3];
+    }
+    return ans;
+}
+
+void cutOff_CohenSutherland(square& s, line_segment& l2) {
+    int code1 = getCode(s, l2.p0);
+    int code2 = getCode(s, l2.p1);
+
+    bool used = false; //флаг, который обозначает что прямая l2 пересекает прямоугольник s
+
+    if (code1+code2 == 0) {
+        return;
+    }
+
+    if ((code1 & code2) == 0) {
+        for (int q = 0; q < 4; ++q) {
+            line_segment l1(s.p[q], s.p[(q + 1) % 4]); //определяем отрезок стороны прямоугольника
+            long double tE = get_tE(l1, l2);
+            point interPoint = l2.get_point(tE);
+
+            if (l1.havePoint(interPoint)) {
+                used = true;
+                //заменяем нужную точку\
+                для каждого отрезка прямоугольника свое условие
+                if ((q == 0 && l2.p0.y < l2.p1.y) ||
+                    (q == 1 && l2.p0.x > l2.p1.x) ||
+                    (q == 2 && l2.p0.y > l2.p1.y) ||
+                    (q == 3 && l2.p0.x < l2.p1.x)) {
+
+                    l2.p0 = interPoint;
+                } else {
+                    l2.p1 = interPoint;
+                }
+            }
+        }
+    } else {
+        l2.visible = false;
+    }
+
+    //если отрезок так и не пересекся с прямоугольником, убираем его
+    if (!used) {
+        l2.visible = false;
+    }
+}
+
+bool clipping(const string& fin_name,
+                              const string& fout_name,
+                              void (*cutOff)(square&, line_segment&)) {
+    ifstream fin(fin_name);
     if (!fin.is_open()) {
         cout << "не удалось откыть файл!";
-        return 0;
+        return false;
     }
 
     square s;
     s.scan(fin);
     int n; fin >> n;
-    line_segment* a = new line_segment[n];
+    auto* a = new line_segment[n];
     for (int i = 0; i < n; ++i) {
         a[i].scan(fin);
     }fin.close();
 
 
     for (int i = 0; i < n; ++i) {
-        for (int q = 0; q < 4; ++q) {
-            line_segment sline1(s.p[q], s.p[(q + 1) % 4]);
-            cutOff(sline1, a[i]);
-        }
+        cutOff(s, a[i]);
     }
 
     int count = 0;
@@ -242,7 +299,7 @@ int main() {
         }
     }
 
-    ofstream fout("out.txt");
+    ofstream fout(fout_name);
     fout << count << '\n';
 
     for (int i = 0; i < n; ++i) {
@@ -253,5 +310,11 @@ int main() {
             fout << a[i].p1.x << ' ' << a[i].p1.y << '\n';
         }
     } fout.close();
-    return 0;
+    return true;
+}
+
+int main() {
+    setlocale(LC_ALL, "Russian");
+    clipping("in.txt", "out_CyrusBeck.txt", cutOff_CyrusBeck);
+    clipping("in.txt", "out_CohenSutherland.txt", cutOff_CohenSutherland);
 }
